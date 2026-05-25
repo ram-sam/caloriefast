@@ -1,208 +1,121 @@
-"use client"
+'use client'
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Moon, Sun, LogOut, Plus, UtensilsCrossed, Timer, TrendingUp } from "lucide-react"
-import { useTheme } from "next-themes"
-import { MealList } from "@/components/meal-list"
-import { MealDialog } from "@/components/meal-dialog"
-import { GoalSetting } from "@/components/goal-setting"
-import { FastingControl } from "@/components/fasting-control"
-import { WeeklyCharts } from "@/components/weekly-charts"
-import type { Meal, Goal, Fast } from "@/types"
+import { useEffect, useState } from 'react'
+import { getCurrentUser } from '@/lib/auth'
+import { getDailyGoal, getUserCalories } from '@/lib/db'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { CalorieChart } from '@/components/dashboard/CalorieChart'
+import { FastingChart } from '@/components/dashboard/FastingChart'
+import { CalorieForm } from '@/components/dashboard/CalorieForm'
+import { FastingTimer } from '@/components/dashboard/FastingTimer'
+import Link from 'next/link'
+import type { Calorie } from '@/types'
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const supabase = createClient()
-  const { theme, setTheme } = useTheme()
-  
   const [user, setUser] = useState<any>(null)
+  const [calories, setCalories] = useState<Calorie[]>([])
+  const [goal, setGoal] = useState<number>(2000)
   const [loading, setLoading] = useState(true)
-  const [meals, setMeals] = useState<Meal[]>([])
-  const [goal, setGoal] = useState<Goal | null>(null)
-  const [activeFast, setActiveFast] = useState<Fast | null>(null)
-  const [showMealDialog, setShowMealDialog] = useState(false)
+  const [todayTotal, setTodayTotal] = useState(0)
 
   useEffect(() => {
-    checkUser()
+    const loadData = async () => {
+      const currentUser = await getCurrentUser()
+      if (currentUser) {
+        setUser(currentUser)
+        const userGoal = await getDailyGoal(currentUser.uid)
+        setGoal(userGoal || 2000)
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const userCalories = await getUserCalories(currentUser.uid)
+        const todayCalories = userCalories.filter(
+          (cal) => new Date(cal.date).toDateString() === today.toDateString()
+        )
+        setCalories(userCalories)
+        setTodayTotal(todayCalories.reduce((sum, cal) => sum + cal.calories, 0))
+      }
+      setLoading(false)
+    }
+    loadData()
   }, [])
 
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      router.push("/auth/login")
-      return
-    }
-    
-    setUser(user)
-    await loadData(user.id)
-    setLoading(false)
-  }
-
-  const loadData = async (userId: string) => {
-    // Load meals for today
-    const today = new Date().toISOString().split('T')[0]
-    const { data: mealsData } = await supabase
-      .from('meals')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('date', today)
-      .order('date', { ascending: false })
-
-    if (mealsData) setMeals(mealsData)
-
-    // Load goal
-    const { data: goalData } = await supabase
-      .from('goals')
-      .select('*')
-      .eq('user_id', userId)
-      .single()
-
-    if (goalData) setGoal(goalData)
-
-    // Load active fast
-    const { data: fastData } = await supabase
-      .from('fasts')
-      .select('*')
-      .eq('user_id', userId)
-      .is('end_time', null)
-      .single()
-
-    if (fastData) setActiveFast(fastData)
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-  }
-
-  const todayCalories = meals.reduce((sum, meal) => sum + meal.calories, 0)
-  const calorieProgress = goal ? (todayCalories / goal.daily_calories) * 100 : 0
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    )
+    return <div className="text-center py-12">Carregando...</div>
   }
+
+  const percentage = Math.min((todayTotal / goal) * 100, 100)
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-green-600">CalorieFast</h1>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
-          {/* Calories Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Calorias Hoje</CardTitle>
-              <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todayCalories} kcal</div>
-              {goal && (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    Meta: {goal.daily_calories} kcal
-                  </p>
-                  <div className="mt-2 h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-600 transition-all"
-                      style={{ width: `${Math.min(calorieProgress, 100)}%` }}
-                    />
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Fasting Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Jejum Ativo</CardTitle>
-              <Timer className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {activeFast ? (
-                <div className="text-2xl font-bold text-green-600">Em andamento</div>
-              ) : (
-                <div className="text-2xl font-bold text-muted-foreground">Nenhum</div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Stats Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Refeições Hoje</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{meals.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Registradas
+    <div className="space-y-8">
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Resumo do dia */}
+        <Card className="p-6">
+          <h2 className="text-2xl font-bold mb-4">Hoje</h2>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Calorias consumidas
               </p>
-            </CardContent>
-          </Card>
-        </div>
+              <p className="text-4xl font-bold text-blue-600">{todayTotal}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">de {goal} calorias</p>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
+              <div
+                className="bg-blue-600 h-4 rounded-full transition-all"
+                style={{ width: `${percentage}%` }}
+              ></div>
+            </div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {percentage.toFixed(0)}% da meta
+            </p>
+          </div>
+        </Card>
 
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
-          <GoalSetting goal={goal} onUpdate={() => loadData(user.id)} />
-          <FastingControl activeFast={activeFast} onUpdate={() => loadData(user.id)} />
-        </div>
+        {/* Jejum */}
+        <Card className="p-6">
+          <h2 className="text-2xl font-bold mb-4">Jejum</h2>
+          <FastingTimer userId={user?.uid} />
+        </Card>
+      </div>
 
-        <div className="grid gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Refeições de Hoje</CardTitle>
-                <CardDescription>Registre e acompanhe suas refeições</CardDescription>
-              </div>
-              <Button onClick={() => setShowMealDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Refeição
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <MealList meals={meals} onUpdate={() => loadData(user.id)} />
-            </CardContent>
-          </Card>
-        </div>
+      {/* Gráficos */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-bold mb-4">Calorias (7 dias)</h3>
+          <CalorieChart userId={user?.uid} goal={goal} />
+        </Card>
+        <Card className="p-6">
+          <h3 className="text-lg font-bold mb-4">Jejum (7 dias)</h3>
+          <FastingChart userId={user?.uid} />
+        </Card>
+      </div>
 
-        <WeeklyCharts userId={user.id} goalCalories={goal?.daily_calories || 2000} />
-      </main>
+      {/* Adicionar caloria */}
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4">Registrar Refeição</h3>
+        <CalorieForm userId={user?.uid} onSuccess={() => window.location.reload()} />
+      </Card>
 
-      <MealDialog
-        open={showMealDialog}
-        onClose={() => setShowMealDialog(false)}
-        onSuccess={() => {
-          loadData(user.id)
-          setShowMealDialog(false)
-        }}
-      />
+      {/* Links rápidos */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <Link href="/dashboard/calories">
+          <Button variant="outline" className="w-full">
+            Ver Histórico de Calorias
+          </Button>
+        </Link>
+        <Link href="/dashboard/fasting">
+          <Button variant="outline" className="w-full">
+            Ver Histórico de Jejuns
+          </Button>
+        </Link>
+        <Link href="/dashboard/settings">
+          <Button variant="outline" className="w-full">
+            Configurações
+          </Button>
+        </Link>
+      </div>
     </div>
   )
 }
