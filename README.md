@@ -330,13 +330,13 @@ Este projeto é para fins educacionais. MIT License.
 
 ## 👤 Autor
 
-Seu Nome - [@seu-github](https://github.com/seu-usuario)
+Samantha - [@ramsam](https://github.com/ram-sam/)
 
 ## 🙏 Agradecimentos
 
 - [Anthropic](https://anthropic.com) - Claude AI
 - [Vercel](https://vercel.com) - Next.js e hospedagem
-- [Supabase](https://supabase.com) - Backend as a Service
+- [Firebase](https://console.firebase.google.com) - Backend as a Service
 - [shadcn/ui](https://ui.shadcn.com) - Componentes UI
 
 ---
