@@ -1,0 +1,24 @@
+{
+  "name": "CalorieFast - Registro de Calorias e Jejum",
+  "short_name": "CalorieFast",
+  "description": "Acompanhe suas calorias e ciclos de jejum intermitente",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#22c55e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}
